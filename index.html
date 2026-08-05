@@ -1,0 +1,881 @@
+﻿<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SAEM - Relevamiento Nacional de Espectrometría de Masas</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
+    <style>
+        * { box-sizing: border-box; }
+        
+        :root {
+            --azul-saem: #1e3a8a;
+            --gris-header: #d1d1d1;
+            --bordo-saem: #800000;
+            --bg-light: #f8fafc;
+            --text-main: #334155;
+            --logo-cyan: #24a8e0;
+            --logo-white: #f8fafc;
+            --logo-yellow: #f2d313;
+            --logo-graphite: #5f6970;
+        }
+
+        body, html { margin: 0; padding: 0; height: 100%; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: var(--bg-light); color: var(--text-main); }
+
+        /* HEADER */
+        header {
+            background: linear-gradient(90deg, #d8ecf8 0%, #eef6fb 40%, #f1f0e8 50%, #eef6fb 60%, #d9edf8 100%);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 24px;
+            padding: 12px 25px;
+            border-bottom: 4px solid var(--azul-saem);
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        .header-left { display: flex; align-items: center; gap: 22px; min-width: 0; }
+        .saem-brand {
+            position: relative;
+            flex: 0 0 auto;
+            width: 280px;
+            height: 84px;
+            padding: 6px 2px 6px;
+            overflow: hidden;
+        }
+        .saem-wordmark {
+            position: absolute;
+            top: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            font-family: Georgia, 'Times New Roman', serif;
+            font-size: 4.25rem;
+            line-height: 1;
+            letter-spacing: 0.08em;
+            color: var(--logo-graphite);
+            text-shadow: 0 1px 0 rgba(255,255,255,0.22);
+            opacity: 0.92;
+            pointer-events: none;
+        }
+        .saem-spectrum {
+            position: absolute;
+            inset: 12px 10px 10px;
+            display: flex;
+            align-items: flex-end;
+            gap: 4px;
+        }
+        .saem-spectrum span {
+            display: block;
+            width: 4px;
+            border-radius: 999px 999px 0 0;
+            opacity: 0.97;
+        }
+        .saem-spectrum .cyan { background: var(--logo-cyan); }
+        .saem-spectrum .white { background: rgba(255,255,255,0.96); }
+        .saem-spectrum .yellow { background: var(--logo-yellow); }
+        .title-container h1 { margin: 0; font-size: 1.38rem; color: #222; }
+        .title-container h2 { margin: 2px 0 0; font-size: 0.94rem; color: #555; font-weight: normal; }
+
+        .header-right { display: flex; flex-direction: column; align-items: center; flex: 0 0 auto; }
+        .btn-form-text { font-size: 0.7rem; color: #444; margin-bottom: 5px; font-style: italic; display: block; text-align: center; }
+        .btn-form { background: var(--azul-saem); color: white; border: none; padding: 10px 15px; border-radius: 6px; text-decoration: none; font-weight: bold; font-size: 0.85rem; transition: background 0.3s; display: inline-block; }
+        .btn-form:hover { background: #172554; }
+        .btn-form-group { display: flex; gap: 8px; }
+        .btn-form-alt { background: var(--bordo-saem); }
+        .btn-form-alt:hover { background: #5c0000; }
+
+        @media (max-width: 1100px) {
+            header {
+                align-items: flex-start;
+                flex-direction: column;
+            }
+            .header-left,
+            .header-right {
+                width: 100%;
+            }
+            .header-right {
+                align-items: flex-start;
+            }
+        }
+
+        /* MODO EMBED (?embed=1): sin logo ni subtítulo, header angosto para no duplicar
+           el encabezado del sitio que lo embebe */
+        body.embed-mode .saem-brand,
+        body.embed-mode .title-container h2 {
+            display: none;
+        }
+        body.embed-mode header {
+            padding: 10px 20px;
+            border-bottom-width: 2px;
+        }
+        body.embed-mode .title-container h1 {
+            font-size: 1.7rem;
+            font-weight: 700;
+        }
+        body.embed-mode .btn-form {
+            padding: 6px 10px;
+            font-size: 0.72rem;
+        }
+        body.embed-mode .main-wrapper {
+            height: calc(100vh - 125px);
+        }
+
+        @media (max-width: 760px) {
+            .header-left {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+            .saem-brand {
+                width: 100%;
+                max-width: 290px;
+            }
+            .saem-wordmark {
+                font-size: 3.7rem;
+            }
+            .title-container h1 {
+                font-size: 1.08rem;
+            }
+            body.embed-mode .title-container h1 {
+                font-size: 1.15rem;
+            }
+        }
+
+        /* STATS BAR */
+        .stats-bar {
+            display: flex;
+            align-items: stretch;
+            justify-content: space-evenly;
+            gap: 8px;
+            padding: 7px 20px;
+            background: #fff;
+            border-bottom: 1px solid #e2e8f0;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.07);
+            flex-wrap: wrap;
+        }
+        .stat-chip {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 5px 16px;
+            border-radius: 10px;
+            flex: 1;
+            min-width: 80px;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.10), 0 0.5px 1.5px rgba(0,0,0,0.06);
+        }
+        .stat-chip .stat-num {
+            font-size: 1.4rem;
+            font-weight: 800;
+            line-height: 1;
+            letter-spacing: -0.01em;
+        }
+        .stat-chip .stat-label {
+            font-size: 0.58rem;
+            color: #64748b;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            margin-top: 3px;
+            text-align: center;
+            white-space: nowrap;
+        }
+
+        /* LAYOUT */
+        .main-wrapper { display: flex; height: calc(100vh - 167px); overflow: hidden; }
+        .sidebar-left { flex: 0 0 20%; padding: 20px; border-right: 1px solid #cbd5e1; overflow-y: auto; background: #fff; }
+        .map-center { flex: 0 0 50%; position: relative; }
+        .sidebar-right { flex: 0 0 30%; padding: 15px; background: #f1f5f9; overflow-y: auto; border-left: 1px solid #cbd5e1; }
+
+        /* FILTROS */
+        .filter-group { margin-bottom: 20px; }
+        .filter-group label { display: block; font-weight: 700; font-size: 0.8rem; margin-bottom: 8px; color: var(--azul-saem); text-transform: uppercase; }
+        select, input { width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; }
+        .btn-buscar { margin-top: 12px; width: 100%; background: var(--azul-saem); color: white; border: none; padding: 12px; cursor: pointer; border-radius: 6px; font-weight: bold; }
+        .help-text { font-size: 0.75rem; color: #64748b; margin-top: 8px; line-height: 1.3; }
+
+        /* TARJETAS AGRUPADAS (RECUPERADAS) */
+        .inst-group { margin-bottom: 25px; border: 1px solid #cbd5e1; border-radius: 10px; background: #fff; overflow: hidden; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+        .inst-header { background: #e2e8f0; padding: 10px 15px; font-weight: bold; color: var(--azul-saem); border-bottom: 1px solid #cbd5e1; }
+        
+        .card { padding: 15px; border-bottom: 1px solid #f1f5f9; transition: all 0.2s; cursor: pointer; position: relative; }
+        .card:last-child { border-bottom: none; }
+        .card:hover { background: #f8fafc; }
+        .card.active { background: #fffafb; border-left: 6px solid var(--bordo-saem); }
+        
+        .card h4 { margin: 0 0 8px 0; color: #1e293b; font-size: 0.95rem; }
+        .tech-list { list-style: none; padding: 0; margin: 0 10px 10px 0; font-size: 0.8rem; color: #475569; }
+        .tech-list li { margin-bottom: 3px; border-bottom: 1px dotted #e2e8f0; padding-bottom: 2px; }
+        .tech-label { font-weight: 600; color: #1e293b; }
+
+        .web-link { font-size: 0.75rem; color: var(--azul-saem); text-decoration: none; font-weight: bold; display: block; margin-bottom: 10px; }
+        .web-link:hover { text-decoration: underline; }
+
+        /* MAPA */
+        #map { height: 100%; width: 100%; background: #ffffff; }
+        .disclaimer { position: absolute; bottom: 10px; left: 10px; background: rgba(255,255,255,0.9); padding: 6px 10px; font-size: 0.7rem; border: 1px solid #cbd5e1; z-index: 1000; border-radius: 4px; max-width: 250px; }
+        
+        .status-pill { display: inline-block; padding: 2px 8px; border-radius: 12px; color: #fff; font-size: 0.65rem; font-weight: bold; margin-bottom: 8px; }
+        .copy-area { background: #f8fafc; border: 1px solid #e2e8f0; padding: 6px; border-radius: 6px; display: flex; align-items: center; justify-content: space-between; font-size: 0.75rem; }
+        .btn-copy { background: #fff; border: 1px solid #cbd5e1; padding: 2px 6px; cursor: pointer; border-radius: 4px; }
+        .card-top-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+        .equipo-id { font-size: 0.62rem; color: #94a3b8; font-weight: 600; background: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 4px; padding: 2px 6px; white-space: nowrap; letter-spacing: 0.03em; }
+        .equipo-id-col { display: flex; flex-direction: column; align-items: flex-end; gap: 3px; }
+        .equipo-updated { font-size: 0.58rem; color: #94a3b8; font-weight: 600; white-space: nowrap; letter-spacing: 0.03em; }
+
+        #visible-counter { font-weight: 800; color: var(--bordo-saem); font-size: 1.4rem; }
+        .serv-info { font-size: 0.75rem; color: #475569; margin-bottom: 8px; line-height: 1.4; }
+        .btn-serv-mas { background: none; border: none; color: var(--azul-saem); cursor: pointer; font-size: 0.7rem; font-weight: bold; padding: 0 2px; text-decoration: underline; }
+        .province-label { background: none !important; border: none !important; box-shadow: none !important; font-family: 'Segoe UI', sans-serif; font-size: 0.72rem; font-weight: 700; color: rgba(71,85,105,0.65); text-transform: uppercase; letter-spacing: 0.07em; white-space: nowrap; pointer-events: none; text-align: center; }
+        .city-label     { background: none !important; border: none !important; box-shadow: none !important; font-family: 'Segoe UI', sans-serif; font-size: 0.70rem; font-weight: 600; color: rgba(30,58,138,0.75);  white-space: nowrap; pointer-events: none; text-align: center; }
+    </style>
+</head>
+<body>
+
+<header>
+    <div class="header-left">
+        <div class="saem-brand" aria-label="SAEM - Sociedad Argentina de Espectrometría de Masas">
+            <div class="saem-wordmark">SAEM</div>
+            <div class="saem-spectrum" aria-hidden="true">
+                <span class="cyan" style="height: 98%"></span>
+                <span class="cyan" style="height: 84%"></span>
+                <span class="cyan" style="height: 64%"></span>
+                <span class="cyan" style="height: 52%"></span>
+                <span class="cyan" style="height: 47%"></span>
+                <span class="cyan" style="height: 26%"></span>
+                <span class="cyan" style="height: 15%"></span>
+                <span class="cyan" style="height: 41%"></span>
+                <span class="cyan" style="height: 22%"></span>
+                <span class="cyan" style="height: 58%"></span>
+                <span class="cyan" style="height: 13%"></span>
+                <span class="cyan" style="height: 56%"></span>
+                <span class="white" style="height: 72%"></span>
+                <span class="white" style="height: 42%"></span>
+                <span class="white" style="height: 59%"></span>
+                <span class="yellow" style="height: 20%"></span>
+                <span class="yellow" style="height: 23%"></span>
+                <span class="yellow" style="height: 26%"></span>
+                <span class="yellow" style="height: 22%"></span>
+                <span class="yellow" style="height: 18%"></span>
+                <span class="white" style="height: 82%"></span>
+                <span class="white" style="height: 45%"></span>
+                <span class="white" style="height: 31%"></span>
+                <span class="white" style="height: 52%"></span>
+                <span class="white" style="height: 37%"></span>
+                <span class="cyan" style="height: 86%"></span>
+                <span class="cyan" style="height: 63%"></span>
+                <span class="cyan" style="height: 34%"></span>
+                <span class="cyan" style="height: 42%"></span>
+                <span class="cyan" style="height: 58%"></span>
+                <span class="cyan" style="height: 82%"></span>
+                <span class="cyan" style="height: 37%"></span>
+                <span class="cyan" style="height: 51%"></span>
+                <span class="cyan" style="height: 64%"></span>
+            </div>
+        </div>
+        <div class="title-container">
+            <h1>Relevamiento Nacional de Equipos de Espectrometría de Masas</h1>
+            <h2>Sociedad Argentina de Espectrometría de Masas (SAEM)</h2>
+        </div>
+    </div>
+    <div class="header-right">
+        <span class="btn-form-text">¿Tu equipo no está en el mapa o cambió de estado?</span>
+        <div class="btn-form-group">
+            <a href="https://docs.google.com/forms/d/e/1FAIpQLSe45z2WMspdg7Jy4VhYf86XEMsUDV1Om6fqROgFfjGqR35wOQ/viewform?usp=header" target="_blank" class="btn-form">
+                + Registrar
+            </a>
+            <a href="https://docs.google.com/forms/d/e/1FAIpQLSdXhkwYsjqxSZJZUEUStrD6UDMlcWNDIiYXGG0fIdcB9lVG7A/viewform?usp=header" target="_blank" class="btn-form btn-form-alt">
+                ✏️ Actualizar
+            </a>
+        </div>
+    </div>
+</header>
+
+<div class="stats-bar">
+    <div class="stat-chip" style="background:#eff6ff;">
+        <span class="stat-num" style="color:#1e3a8a;" id="stat-total">—</span>
+        <span class="stat-label">Total EM</span>
+    </div>
+    <div class="stat-chip" style="background:#f0f9ff;">
+        <span class="stat-num" style="color:#0369a1;" id="stat-provincias">—</span>
+        <span class="stat-label">Provincias</span>
+    </div>
+    <div class="stat-chip" style="background:#f0fdfa;">
+        <span class="stat-num" style="color:#0f766e;" id="stat-publicos">—</span>
+        <span class="stat-label">Públicos</span>
+    </div>
+    <div class="stat-chip" style="background:#eef2ff;">
+        <span class="stat-num" style="color:#4338ca;" id="stat-privados">—</span>
+        <span class="stat-label">Privados</span>
+    </div>
+    <div class="stat-chip" style="background:#ecfdf5;">
+        <span class="stat-num" style="color:#047857;" id="stat-servicios">—</span>
+        <span class="stat-label">Con Servicios</span>
+    </div>
+    <div class="stat-chip" style="background:#f0fdf4;">
+        <span class="stat-num" style="color:#16a34a;" id="stat-operativos">—</span>
+        <span class="stat-label">Operativos</span>
+    </div>
+    <div class="stat-chip" style="background:#fff1f2;">
+        <span class="stat-num" style="color:#be123c;" id="stat-noop">—</span>
+        <span class="stat-label">No Operativos</span>
+    </div>
+</div>
+
+<div class="main-wrapper">
+    <div class="sidebar-left">
+        <div class="filter-group">
+            <label>Fuente de Ionización</label>
+            <select id="f-fuente" onchange="applyFilters()">
+                <option value="">Todas</option>
+                <option value="EI">EI</option><option value="ESI">ESI</option><option value="MALDI">MALDI</option>
+                <option value="APCI">APCI</option><option value="DESI">DESI</option><option value="CI">CI</option>
+                <option value="ICP">ICP</option><option value="DART">DART</option><option value="APPI">APPI</option>
+                <option value="LDI">LDI</option><option value="SIMS">SIMS</option>
+            </select>
+        </div>
+        <div class="filter-group">
+            <label>Técnica Cromatográfica</label>
+            <select id="f-cromatog" onchange="applyFilters()">
+                <option value="">Todas</option>
+                <option value="LC">LC</option>
+                <option value="GC">GC</option>
+            </select>
+        </div>
+        <div class="filter-group">
+            <label>Provincia</label>
+            <select id="f-provincia" onchange="applyFilters()">
+                <option value="">Todas</option>
+                <option value="CABA">CABA</option><option value="Buenos Aires">Buenos Aires</option>
+                <option value="Santa Fe">Santa Fe</option><option value="Córdoba">Córdoba</option>
+                <option value="Mendoza">Mendoza</option><option value="Tucumán">Tucumán</option><option value="San Luis">San Luis</option>
+            </select>
+        </div>
+        <div class="filter-group">
+            <label>Servicios a Terceros</label>
+            <select id="f-servicios" onchange="applyFilters()">
+                <option value="">Todos</option>
+                <option value="Si">Si</option>
+                <option value="No">No</option>
+            </select>
+        </div>
+        <div class="filter-group">
+            <label>Tipo de Servicios</label>
+            <p class="help-text">Use palabras clave</p>
+            <input type="text" id="f-tipo-servicio" placeholder="Ej: Fármacos, metabolómica, ácidos grasos, etc."  oninput="applyFilters()">
+        </div>
+        <div class="filter-group">
+            <label>Otra especificación técnica</label>
+            <p class="help-text">Use siglas para buscar otras especificaciones como Fuente, Analizador, Cromatografía y Otros detectores.</p>
+            <input type="text" id="f-libre" placeholder="Ej: TOF, Orbitrap, PDA, IT..." oninput="applyFilters()">
+        </div>
+        <div style="margin-top:30px; text-align: center; background: #f8fafc; padding: 15px; border-radius: 8px; border: 1px dashed #cbd5e1;">
+            <div style="font-size: 0.75rem; color: #64748b; text-transform: uppercase; margin-bottom: 5px;">Equipos Visibles</div>
+            <span id="visible-counter">0</span>
+        </div>
+    </div>
+
+    <div class="map-center">
+        <div id="map"></div>
+        <div class="disclaimer">Ante cualquier consulta, puede comunicarse a <strong>secretariasaem@gmail.com</strong><button class="btn-copy" style="margin-left:6px;vertical-align:middle;padding:1px 4px" onclick="copy('secretariasaem@gmail.com', this)"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><rect x="5" y="5" width="9" height="10" rx="1.5" stroke="currentColor" stroke-width="1.5"/><rect x="2" y="2" width="9" height="10" rx="1.5" fill="white" stroke="currentColor" stroke-width="1.5"/></svg></button></div>
+    </div>
+
+    <div class="sidebar-right" id="results-list"></div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+<script src="./provincias_argentina_embedded.js"></script>
+<script src="./malvinas_embedded.js"></script>
+<script>
+    if (new URLSearchParams(location.search).get('embed') === '1') {
+        document.body.classList.add('embed-mode');
+    }
+
+    const TSV_URL ='https://docs.google.com/spreadsheets/d/e/2PACX-1vSiZIJRvm8oVkMUcTj8WwIx1KPj_Jke-WVTIR_EmOluF6TxxqUuLJQYhailt0L0f8EW4O5DGGLfOthR/pub?gid=1381145379&single=true&output=tsv&cache=' + new Date().getTime();
+    const PROVINCES_GEOJSON_URLS = [
+        './provincias_argentina.geojson',
+        'https://media.githubusercontent.com/media/wmgeolab/geoBoundaries/main/releaseData/gbOpen/ARG/ADM1/geoBoundaries-ARG-ADM1.geojson',
+        'https://raw.githubusercontent.com/johan/world.geo.json/master/countries/ARG.geo.json'
+    ];
+    const MALVINAS_GEOJSON_URLS = [
+        './malvinas.geojson',
+        'https://raw.githubusercontent.com/johan/world.geo.json/master/countries/FLK.geo.json'
+    ];
+    
+    let allData = [];
+    let allDataStats = [];
+    let markers = [];
+    let clusterGroup;
+    let activeInstBlock = null;
+    let provinceLabelsLayer;
+    let cityLabelsLayer;
+    let loadedProvincesGeoJson = null;
+    
+    // Mapa base en blanco, sin tile layer.
+    const map = L.map('map', {
+        minZoom: 4,
+        maxZoom: 12
+    }).setView([-38.4161, -63.6167], 5);
+
+    clusterGroup = L.markerClusterGroup({ chunkedLoading: true, iconCreateFunction: function(cluster) { var n = cluster.getChildCount(); var c = n < 10 ? 'small' : n < 100 ? 'medium' : 'large'; return L.divIcon({ html: '<div><span>' + n + '</span></div>', className: 'marker-cluster marker-cluster-' + c, iconSize: [40, 40], iconAnchor: [20, 30] }); } });
+    map.addLayer(clusterGroup);
+    provinceLabelsLayer = L.layerGroup();
+    cityLabelsLayer     = L.layerGroup();
+    map.addLayer(provinceLabelsLayer);
+    map.on('zoomend', updateLabelVisibility);
+    map.on('click', () => { if (activeInstBlock) { activeInstBlock.style.boxShadow = 'none'; activeInstBlock = null; } });
+
+    function isValidGeoJson(data) {
+        return !!(
+            data &&
+            data.type === 'FeatureCollection' &&
+            Array.isArray(data.features) &&
+            data.features.length > 0
+        );
+    }
+
+    function drawGeoLayer(geojsonData) {
+        L.geoJSON(geojsonData, {
+            style: {
+                color: '#475569',
+                weight: 1.5,
+                fillColor: '#f1f5f9',
+                fillOpacity: 1,
+                opacity: 1
+            },
+            interactive: false
+        }).addTo(map);
+    }
+
+    async function loadGeoLayerWithFallback(embeddedGeojson, sources, layerName) {
+        if (isValidGeoJson(embeddedGeojson)) {
+            drawGeoLayer(embeddedGeojson);
+            if (layerName === 'provincias') loadedProvincesGeoJson = embeddedGeojson;
+            return;
+        }
+
+        for (const url of sources) {
+            try {
+                const response = await fetch(url, { cache: 'no-store' });
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status} en ${url}`);
+                }
+
+                const geojsonData = await response.json();
+                if (!isValidGeoJson(geojsonData)) {
+                    throw new Error(`GeoJSON invalido en ${url}`);
+                }
+
+                drawGeoLayer(geojsonData);
+                if (layerName === 'provincias') loadedProvincesGeoJson = geojsonData;
+
+                return;
+            } catch (error) {
+                console.warn(`No se pudo cargar ${layerName} desde:`, url, error);
+            }
+        }
+
+        console.error(`No fue posible cargar la capa ${layerName} desde ninguna fuente.`);
+    }
+
+    async function loadBaseLayers() {
+        await loadGeoLayerWithFallback(window.SAEM_LOCAL_PROVINCES, PROVINCES_GEOJSON_URLS, 'provincias');
+        await loadGeoLayerWithFallback(window.SAEM_LOCAL_MALVINAS, MALVINAS_GEOJSON_URLS, 'malvinas');
+        if (loadedProvincesGeoJson) drawProvinceLabels(loadedProvincesGeoJson);
+        updateLabelVisibility();
+    }
+
+    loadBaseLayers();
+
+    function getPolygonCentroid(geometry) {
+        let coords = [];
+        if (geometry.type === 'Polygon') {
+            coords = geometry.coordinates[0];
+        } else if (geometry.type === 'MultiPolygon') {
+            // Usa el polÃ­gono con centroide mÃ¡s al norte (evita territorios antÃ¡rticos)
+            coords = geometry.coordinates.reduce((best, poly) => {
+                const avgLat  = poly[0].reduce((s, c) => s + c[1], 0) / poly[0].length;
+                const bestAvg = best[0].reduce((s, c) => s + c[1], 0) / best[0].length;
+                return avgLat > bestAvg ? poly : best;
+            })[0];
+        }
+        if (!coords.length) return null;
+        let minLat = Infinity, maxLat = -Infinity, minLng = Infinity, maxLng = -Infinity;
+        coords.forEach(([lng, lat]) => {
+            if (lat < minLat) minLat = lat;  if (lat > maxLat) maxLat = lat;
+            if (lng < minLng) minLng = lng;  if (lng > maxLng) maxLng = lng;
+        });
+        return [(minLat + maxLat) / 2, (minLng + maxLng) / 2];
+    }
+
+    function drawProvinceLabels(geojsonData) {
+        provinceLabelsLayer.clearLayers();
+        if (!geojsonData || !geojsonData.features) return;
+
+        // Abreviaciones de nombres
+        const nameByKey = {
+            'ciudadautonomadebuenosaires': 'CABA',
+        };
+
+        // Centroides manuales [lat, lng] indexados por cleanKey(label)
+        const centroidByKey = {
+            'caba':                [-34.603, -58.382],
+            'buenosaires':         [-36.700, -60.500],
+            'cordoba':             [-31.400, -64.000],
+            'santafe':             [-30.700, -60.950],
+            'entrerios':           [-31.700, -59.000],
+            'misiones':            [-27.000, -55.250],
+            'corrientes':          [-28.470, -57.800],
+            'chaco':               [-26.400, -60.800],
+            'formosa':             [-24.900, -59.600],
+            'jujuy':               [-23.300, -65.750],
+            'salta':               [-24.800, -65.400],
+            'tucuman':             [-26.950, -65.400],
+            'santiagodelesteri':   [-27.800, -64.300],
+            'santiagodeleestero':  [-27.800, -64.300],
+            'catamarca':           [-27.500, -67.000],
+            'larioja':             [-29.400, -67.000],
+            'sanjuan':             [-30.900, -68.900],
+            'mendoza':             [-34.600, -68.500],
+            'sanluis':             [-33.300, -66.300],
+            'lapampa':             [-36.600, -64.300],
+            'neuquen':             [-38.950, -70.000],
+            'rionegro':            [-40.000, -67.500],
+            'chubut':              [-43.500, -68.500],
+            'santacruz':           [-49.000, -69.500],
+            'tierradelfuego':      [-54.000, -67.500],
+        };
+
+        geojsonData.features.forEach(feature => {
+            const props = feature.properties || {};
+            const raw   = props.shapeName || props.NAME_1 || props.name || '';
+            if (!raw) return;
+
+            let label = nameByKey[cleanKey(raw)] || raw;
+            if (cleanKey(label).startsWith('tierradelfuego')) label = 'Tierra del Fuego';
+
+            const centroid = centroidByKey[cleanKey(label)] || (feature.geometry ? getPolygonCentroid(feature.geometry) : null);
+            if (!centroid) return;
+
+            L.marker(centroid, {
+                icon: L.divIcon({
+                    className: 'province-label',
+                    html: '<div>' + label + '</div>',
+                    iconSize: [160, 20],
+                    iconAnchor: [80, 10]
+                }),
+                interactive: false
+            }).addTo(provinceLabelsLayer);
+        });
+    }
+
+    function updateCityLabels() {
+        cityLabelsLayer.clearLayers();
+        const cityMap = new Map();
+        allData.forEach(d => {
+            if (!d.Ciudad || !d.Latitud || !d.Longitud) return;
+            const key = d.Ciudad.trim() + '|' + (d.Provincia || '').trim();
+            const lat = parseFloat(d.Latitud.replace(',', '.'));
+            const lng = parseFloat(d.Longitud.replace(',', '.'));
+            if (isNaN(lat) || isNaN(lng)) return;
+            if (!cityMap.has(key)) cityMap.set(key, { latSum: 0, lngSum: 0, count: 0, name: d.Ciudad.trim() });
+            const e = cityMap.get(key); e.latSum += lat; e.lngSum += lng; e.count++;
+        });
+        cityMap.forEach(({ latSum, lngSum, count, name }) => {
+            L.marker([latSum / count, lngSum / count], {
+                icon: L.divIcon({ className: 'city-label', html: '<div>' + name + '</div>', iconSize: [120, 16], iconAnchor: [60, -5] }),
+                interactive: false
+            }).addTo(cityLabelsLayer);
+        });
+    }
+
+    function updateLabelVisibility() {
+        const zoom = map.getZoom();
+        if (zoom >= 7) {
+            map.removeLayer(provinceLabelsLayer);
+            if (!map.hasLayer(cityLabelsLayer)) map.addLayer(cityLabelsLayer);
+        } else if (zoom >= 6) {
+            if (!map.hasLayer(provinceLabelsLayer)) map.addLayer(provinceLabelsLayer);
+            map.removeLayer(cityLabelsLayer);
+        } else {
+            map.removeLayer(provinceLabelsLayer);
+            map.removeLayer(cityLabelsLayer);
+        }
+    }
+
+    async function loadData() {
+        try {
+            const response = await fetch(TSV_URL);
+            const text = await response.text();
+            const rows = text.split('\n').map(row => row.replace(/\r/g, '').split('\t'));
+            const headers = rows[0].map(h => h.trim());
+            
+            const parsed = rows.slice(1).map(row => {
+                let obj = {};
+                headers.forEach((h, i) => obj[h] = row[i] ? row[i].trim() : '');
+                return obj;
+            });
+            allDataStats = parsed.filter(d => d.Moderacion === 'Aprobado');
+            allData = allDataStats.filter(d => d.Privacidad === 'Publica');
+
+            updateStatsBar();
+            applyFilters();
+            updateCityLabels();
+        } catch (e) {
+            alert("Error cargando la base de datos.");
+            console.error(e);
+        }
+    }
+
+    function clean(str) { return str ? str.toLowerCase().replace(/\s+/g, '') : ''; }
+
+    function cleanKey(str) {
+        return str
+            ? str
+                .toString()
+                .normalize('NFD')
+                .replace(/[\u0300-\u036f]/g, '')
+                .toLowerCase()
+                .replace(/\s+/g, '')
+            : '';
+    }
+
+    function esc(str) {
+        return String(str == null ? '' : str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+
+    function escJsAttr(str) {
+        return esc(str).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+    }
+
+    function formatUltimaActualizacion(str) {
+        const match = str && str.trim().match(/^(\d{2})\/(\d{2})\/(\d{4})/);
+        return match ? match[2] + '/' + match[3] : '';
+    }
+
+
+    function seededRandom(seedText) {
+        let seed = 0;
+        for (let i = 0; i < seedText.length; i++) {
+            seed = (seed * 31 + seedText.charCodeAt(i)) >>> 0;
+        }
+
+        return function () {
+            seed = (seed + 0x6D2B79F5) >>> 0;
+            let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+            t ^= t + Math.imul(t ^ (t >>> 7), 61 | t);
+            return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+        };
+    }
+
+
+    function jitterAroundBase(baseLat, baseLng, seedText) {
+        const random = seededRandom(seedText || `${baseLat},${baseLng}`);
+        const maxMeters = 500;
+        const angle = random() * Math.PI * 2;
+        const radius = Math.sqrt(random()) * maxMeters;
+        const metersPerDegLat = 111320;
+        const metersPerDegLng = Math.max(1, metersPerDegLat * Math.cos(baseLat * Math.PI / 180));
+
+        return [
+            baseLat + (Math.sin(angle) * radius) / metersPerDegLat,
+            baseLng + (Math.cos(angle) * radius) / metersPerDegLng
+        ];
+    }
+
+    function updateStatsBar() {
+        const total = allDataStats.length;
+        const provincias = new Set(allDataStats.map(d => (d.Provincia || '').trim())).size;
+        const publicos  = allDataStats.filter(d => cleanKey(d.Tipo_Inst || '') === 'publica').length;
+        const privados  = allDataStats.filter(d => cleanKey(d.Tipo_Inst || '') === 'privada').length;
+        const servicios = allDataStats.filter(d => clean(d.Servicios_Terceros) === 'si').length;
+        const operativos = allDataStats.filter(d => cleanKey(d.Estado || '') === 'operativo').length;
+        const noop        = allDataStats.filter(d => cleanKey(d.Estado || '') === 'nooperativo').length;
+
+        document.getElementById('stat-total').textContent      = total;
+        document.getElementById('stat-provincias').textContent = provincias;
+        document.getElementById('stat-publicos').textContent   = publicos;
+        document.getElementById('stat-privados').textContent   = privados;
+        document.getElementById('stat-servicios').textContent  = servicios;
+        document.getElementById('stat-operativos').textContent = operativos;
+        document.getElementById('stat-noop').textContent       = noop;
+    }
+
+    function applyFilters() {
+        const fFuente = clean(document.getElementById('f-fuente').value);
+        const fCromatog = clean(document.getElementById('f-cromatog').value);
+        const fProv = clean(document.getElementById('f-provincia').value);
+        const fServ = clean(document.getElementById('f-servicios').value);
+        const fTipoServ = clean(document.getElementById('f-tipo-servicio').value);
+        const fLibre = clean(document.getElementById('f-libre').value);
+
+        const filtered = allData.filter(d => {
+            const matchesFuente = fFuente === '' || clean(d.Fuente).includes(fFuente);
+            const matchesCromatog = fCromatog === '' || clean(d.Tecnica_Cromatografica_Acoplada).includes(fCromatog);
+            const matchesProv = fProv === '' || clean(d.Provincia) === fProv;
+            const matchesServ = fServ === '' || clean(d.Servicios_Terceros) === fServ;
+            const matchesTipoServ = fTipoServ === '' || clean(d.Tipo_Servicios || '').includes(fTipoServ);
+            const globalText = clean(d.Fuente + d.Analizador + d.Tecnica_Cromatografica_Acoplada + d.Otros_detectores);
+            const matchesLibre = fLibre === '' || globalText.includes(fLibre);
+
+            return matchesFuente && matchesCromatog && matchesProv && matchesServ && matchesLibre && matchesTipoServ;
+        });
+
+        filtered.sort((a, b) => {
+            const provA = (a.Provincia || '').trim();
+            const provB = (b.Provincia || '').trim();
+            if (provA !== provB) return provA.localeCompare(provB, 'es');
+            return (a.Institucion || '').localeCompare(b.Institucion || '', 'es');
+        });
+
+        const grouped = filtered.reduce((acc, obj) => {
+            if (!acc[obj.Institucion]) acc[obj.Institucion] = [];
+            acc[obj.Institucion].push(obj);
+            return acc;
+        }, {});
+
+        render(grouped, filtered.length);
+    }
+
+    function render(groupedData, totalVisible) {
+        clusterGroup.clearLayers();
+        markers = [];
+        const list = document.getElementById('results-list');
+        list.innerHTML = '';
+        document.getElementById('visible-counter').innerText = totalVisible;
+        if (totalVisible === 0) {
+            list.innerHTML = '<div style="padding:30px 20px; text-align:center; color:#64748b;"><div style="font-size:2rem; margin-bottom:12px;">\uD83D\uDD0D</div><p style="font-weight:700; color:#475569; margin:0 0 8px;">Sin resultados</p><p style="font-size:0.82rem; line-height:1.5; margin:0;">No se encontraron equipos con los filtros aplicados.<br>Pruebe con otra sigla o ajustando los criterios de b\u00fasqueda.</p></div>';
+            return;
+        }
+        Object.keys(groupedData).forEach((instName, instIndex) => {
+            const equipos = groupedData[instName];
+            const primerEquipo = equipos[0];
+
+            if (!primerEquipo.Latitud || !primerEquipo.Longitud) return;
+
+            const baseLat = parseFloat(primerEquipo.Latitud.replace(',', '.'));
+            const baseLng = parseFloat(primerEquipo.Longitud.replace(',', '.'));
+            const [lat, lng] = jitterAroundBase(baseLat, baseLng, instName);
+
+            const m = L.marker([lat, lng]);
+            clusterGroup.addLayer(m);
+            
+            let popupHtml = `<div style="min-width:180px;"><strong style="color:var(--azul-saem)">${esc(instName)}</strong><br>`;
+            popupHtml += `<small style="color:#666">${equipos.length} equipo(s) registrado(s)</small><hr style="margin:5px 0; border:0; border-top:1px solid #eee">`;
+            equipos.forEach(e => {
+                popupHtml += `<div style="font-size:0.75rem; margin-bottom:4px;">• ${esc(e.Marca_Modelo)} (${esc(e.Analizador)})</div>`;
+            });
+            popupHtml += `</div>`;
+            
+            m.bindPopup(popupHtml);
+            markers.push(m);
+
+            const instBlock = document.createElement('div');
+            instBlock.className = 'inst-group';
+            instBlock.id = `group-${instIndex}`;
+            instBlock.innerHTML = `<div class="inst-header">${esc(instName)}</div>`;
+
+            equipos.forEach((e, eIndex) => {
+                const card = document.createElement('div');
+                card.className = 'card';
+                card.innerHTML = `
+                    <div class="card-top-row">
+                        <div class="status-pill" style="background:${getStatusColor(e.Estado)};margin-bottom:0">${esc(e.Estado)}</div>
+                        <div class="equipo-id-col">
+                            ${e.ID_Equipo ? '<span class="equipo-id">ID\u00a0Equipo\u00a0' + esc(e.ID_Equipo) + '</span>' : ''}
+                            ${formatUltimaActualizacion(e['Ultima_actualizacion (autom\u00e1tico)']) ? '<span class="equipo-updated">Actualizado al ' + formatUltimaActualizacion(e['Ultima_actualizacion (autom\u00e1tico)']) + '</span>' : ''}
+                        </div>
+                    </div>
+                    <h4>${esc(e.Marca_Modelo)}</h4>
+                    <ul class="tech-list">
+                        <li><span class="tech-label">Fuente:</span> <span>${esc(e.Fuente)}</span></li>
+                        <li><span class="tech-label">Analizador:</span> <span>${esc(e.Analizador)}</span></li>
+                        <li><span class="tech-label">Cromatografía:</span> <span>${esc(e.Tecnica_Cromatografica_Acoplada)}</span></li>
+                        <li><span class="tech-label">Otros Detectores:</span> <span>${esc(e.Otros_detectores || 'No especifica')}</span></li>
+                        ${renderServiciosTerceros(e)}
+                        ${(e.Ciudad || e.Provincia) ? `<li><span class="tech-label">Ubicaci\u00f3n:</span> <span>${esc([e.Ciudad, e.Provincia].filter(Boolean).join(", "))}</span></li>` : ""}
+                    </ul>
+                    ${e.Pagina_web ? `<a href="${esc(e.Pagina_web)}" target="_blank" class="web-link">🌐 Sitio Web Institucional</a>` : ''}
+                    <div class="copy-area">
+                        <span style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:160px;">${esc(e.Contacto)}</span>
+                        <button class="btn-copy" onclick="copy('${escJsAttr(e.Contacto)}', this, event)"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><rect x="5" y="5" width="9" height="10" rx="1.5" stroke="currentColor" stroke-width="1.5"/><rect x="2" y="2" width="9" height="10" rx="1.5" fill="white" stroke="currentColor" stroke-width="1.5"/></svg></button>
+                    </div>
+                `;
+                
+                card.onclick = () => {
+                    document.querySelectorAll('.card').forEach(c => { c.classList.remove('active'); c.style.borderLeftColor = ''; });
+                    card.classList.add('active');
+                    card.style.borderLeftColor = getActiveColor(e.Estado);
+                    clusterGroup.zoomToShowLayer(m, () => m.openPopup());
+                };
+
+                instBlock.appendChild(card);
+            });
+
+            m.on('click', () => {
+                if (activeInstBlock && activeInstBlock !== instBlock) activeInstBlock.style.boxShadow = 'none';
+                activeInstBlock = instBlock;
+                instBlock.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                instBlock.style.boxShadow = '0 0 0 3px rgba(0,0,128,0.55), 0 4px 20px rgba(128,0,0,0.45)';
+            });
+
+            list.appendChild(instBlock);
+        });
+    }
+
+    function getStatusColor(s) {
+        if(!s) return '#999';
+        const st = s.toLowerCase();
+        if(st.includes('operativo') && !st.startsWith('no') && !st.includes('parcial')) return '#10b981';
+        if(st.includes('parcial')) return '#f59e0b';
+        return '#ef4444';
+    }
+
+    function getActiveColor(s) {
+        if (!s) return 'var(--bordo-saem)';
+        const st = s.toLowerCase();
+        if (st.includes('operativo') && !st.startsWith('no') && !st.includes('parcial')) return '#065f46';
+        return 'var(--bordo-saem)';
+    }
+
+    function copy(text, btn, e) {
+        if (e) e.stopPropagation();
+        const orig = btn.innerHTML;
+        navigator.clipboard.writeText(text).then(() => {
+            btn.innerHTML = '<span style="font-size:0.68rem;color:#16a34a;font-weight:700;white-space:nowrap">✓ Copiado</span>';
+            setTimeout(() => btn.innerHTML = orig, 2000);
+        });
+    }
+
+    function renderServiciosTerceros(eq) {
+        const val = eq.Servicios_Terceros ? eq.Servicios_Terceros.trim().toLowerCase() : '';
+        const texto = eq.Tipo_Servicios ? eq.Tipo_Servicios.trim() : '';
+        if (val !== 'si') return '<li><span class="tech-label">Servicios:</span> <span>No</span></li>';
+        if (!texto) return '<li><span class="tech-label">Servicios:</span> <span>S\u00ed</span></li>';
+        if (texto.length <= 200) return '<li><span class="tech-label">Servicios:</span> <span>' + esc(texto) + '</span></li>';
+        return '<li><span class="tech-label">Servicios:</span> ' +
+            '<span class="serv-short">' + esc(texto.substring(0, 200)) + '...</span>' +
+            '<span class="serv-rest" style="display:none">' + esc(texto) + '</span>' +
+            '<button class="btn-serv-mas" onclick="toggleServicios(this,event)">Mostrar m\u00e1s</button></li>';
+    }
+
+    function toggleServicios(btn, evt) {
+        evt.stopPropagation();
+        const container = btn.parentElement;
+        const short = container.querySelector('.serv-short');
+        const rest = container.querySelector('.serv-rest');
+        if (rest.style.display === 'none') {
+            short.style.display = 'none';
+            rest.style.display = 'inline';
+            btn.textContent = 'Mostrar menos';
+        } else {
+            short.style.display = 'inline';
+            rest.style.display = 'none';
+            btn.textContent = 'Mostrar m\u00e1s';
+        }
+    }
+
+    loadData();
+</script>
+</body>
+</html>
