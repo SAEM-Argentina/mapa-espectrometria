@@ -392,10 +392,9 @@
     }
 
     function sizeMainWrapper() {
-        const header = document.querySelector('header');
-        const statsBar = document.querySelector('.stats-bar');
-        const used = header.offsetHeight + statsBar.offsetHeight;
-        document.querySelector('.main-wrapper').style.height = (window.innerHeight - used) + 'px';
+        const wrap = document.querySelector('.main-wrapper');
+        const top = wrap.getBoundingClientRect().top;
+        wrap.style.height = (window.innerHeight - top) + 'px';
     }
     sizeMainWrapper();
     window.addEventListener('resize', () => {
