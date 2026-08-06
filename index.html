@@ -117,9 +117,6 @@
             padding: 6px 10px;
             font-size: 0.72rem;
         }
-        body.embed-mode .main-wrapper {
-            height: calc(100vh - 125px);
-        }
         body.embed-mode .map-center {
             border-bottom: 1px solid #cbd5e1;
         }
@@ -393,6 +390,15 @@
     if (new URLSearchParams(location.search).get('embed') === '1') {
         document.body.classList.add('embed-mode');
     }
+
+    function sizeMainWrapper() {
+        const header = document.querySelector('header');
+        const statsBar = document.querySelector('.stats-bar');
+        const used = header.offsetHeight + statsBar.offsetHeight;
+        document.querySelector('.main-wrapper').style.height = (window.innerHeight - used) + 'px';
+    }
+    sizeMainWrapper();
+    window.addEventListener('resize', sizeMainWrapper);
 
     const TSV_URL ='https://docs.google.com/spreadsheets/d/e/2PACX-1vSiZIJRvm8oVkMUcTj8WwIx1KPj_Jke-WVTIR_EmOluF6TxxqUuLJQYhailt0L0f8EW4O5DGGLfOthR/pub?gid=1381145379&single=true&output=tsv&cache=' + new Date().getTime();
     const PROVINCES_GEOJSON_URLS = [
