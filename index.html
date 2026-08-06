@@ -398,7 +398,10 @@
         document.querySelector('.main-wrapper').style.height = (window.innerHeight - used) + 'px';
     }
     sizeMainWrapper();
-    window.addEventListener('resize', sizeMainWrapper);
+    window.addEventListener('resize', () => {
+        sizeMainWrapper();
+        if (typeof map !== 'undefined') map.invalidateSize();
+    });
 
     const TSV_URL ='https://docs.google.com/spreadsheets/d/e/2PACX-1vSiZIJRvm8oVkMUcTj8WwIx1KPj_Jke-WVTIR_EmOluF6TxxqUuLJQYhailt0L0f8EW4O5DGGLfOthR/pub?gid=1381145379&single=true&output=tsv&cache=' + new Date().getTime();
     const PROVINCES_GEOJSON_URLS = [
@@ -628,6 +631,8 @@
             allData = allDataStats.filter(d => d.Privacidad === 'Publica');
 
             updateStatsBar();
+            sizeMainWrapper();
+            map.invalidateSize();
             applyFilters();
             updateCityLabels();
         } catch (e) {
