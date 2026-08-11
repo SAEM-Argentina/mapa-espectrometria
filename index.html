@@ -425,7 +425,8 @@
     // Mapa base en blanco, sin tile layer.
     const map = L.map('map', {
         minZoom: 4,
-        maxZoom: 12
+        maxZoom: 12,
+        keyboard: false
     }).setView([-38.4161, -63.6167], 5);
 
     clusterGroup = L.markerClusterGroup({ chunkedLoading: true, iconCreateFunction: function(cluster) { var n = cluster.getChildCount(); var c = n < 10 ? 'small' : n < 100 ? 'medium' : 'large'; return L.divIcon({ html: '<div><span>' + n + '</span></div>', className: 'marker-cluster marker-cluster-' + c, iconSize: [40, 40], iconAnchor: [20, 30] }); } });
